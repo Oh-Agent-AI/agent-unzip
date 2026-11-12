@@ -2,7 +2,7 @@
 name = "agent-unzip"
 version = "0.2.0"
 edition = "2021"
-description = "Untrusted-archive gate: inspect first, extract or pack only if safe"
+description = "代理解压缩：为 Agent 设计的解压器，结构化输出、永不阻塞、默认拒绝危险包"
 
 [[bin]]
 name = "aunzip"

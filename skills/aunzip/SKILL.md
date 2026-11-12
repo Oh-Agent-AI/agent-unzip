@@ -1,14 +1,17 @@
 ---
-name: aunzip-archive-gate
+name: agent-unzip
 description: >-
-  用 aunzip 处理「来路不明的压缩包」：先体检再解压。当需要解压用户上传/客户发来的
-  rar、zip、7z，或需要在解压前判断包是否安全（伪装的可执行文件、目录穿越、压缩炸弹、
-  文件名欺骗）时使用。也用于读取压缩包注释、交付完整性核对、照片 EXIF 摘要。
-  Use when you must extract an untrusted archive, or must decide whether it is safe
-  to extract at all. NEVER call unzip/tar directly on untrusted input.
+  agent-unzip（代理解压缩）—— 为 Agent 设计的解压/打包器。当需要处理来路不明的
+  rar/zip/7z（先体检再解压），或需要把结果打包交付给用户时使用。特点：JSON 契约
+  aunzip/1、语义退出码、永不阻塞、默认拒绝危险包（伪装程序/目录穿越/压缩炸弹/文件名欺骗）。
+  也用于读取包注释、交付数量核对、照片 EXIF、打包前自查（.env/.git/可执行文件/PII）。
+  Use whenever you must extract OR create an archive. NEVER call unzip/tar/zip
+  directly on untrusted input — always inspect first.
 ---
 
-# aunzip — 不可信压缩包的闸门
+# agent-unzip（代理解压缩）— 命令 `aunzip`
+
+> 为 Agent 设计：结构化输出、永不阻塞、默认拒绝危险包。
 
 **核心规则：对于任何不是你亲手创建的压缩包，先 `inspect`，再决定是否 `extract`。**
 **永远不要对不可信输入直接调用 `unzip` / `tar` / `7z`。**

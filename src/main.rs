@@ -263,7 +263,7 @@ fn schema_json() -> String {
         "schema": "aunzip/1",
         "name": "aunzip",
         "version": VERSION,
-        "description": "不可信压缩包的安全闸门：先判定，再决定是否解压",
+        "description": "agent-unzip（代理解压缩）：为 Agent 设计的解压器 —— 结构化输出、永不阻塞、默认拒绝危险包",
         "commands": [
             {
                 "name": "inspect",
@@ -410,7 +410,7 @@ fn run_json(src: &Path, opts: &Opts) -> i32 {
 
 fn usage() {
     println!(
-        "aunzip {VERSION} —— 跨平台解压缩器（RAR 优先）
+        "agent-unzip（代理解压缩）{VERSION} —— 为 Agent 设计的解压器：安全优先，结构化输出
 
 用法：
   aunzip inspect <压缩包...>    只体检，输出 JSON（给 Agent / 脚本）

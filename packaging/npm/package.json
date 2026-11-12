@@ -1,7 +1,7 @@
 {
   "name": "agent-unzip",
   "version": "0.2.0",
-  "description": "Untrusted-archive gate for agents: inspect first, extract only if safe",
+  "description": "agent-unzip（代理解压缩）：为 Agent 设计的解压器，JSON 契约 + 语义退出码 + 默认拒绝危险包",
   "bin": {
     "aunzip": "bin/aunzip.js"
   },

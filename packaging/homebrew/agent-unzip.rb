@@ -6,7 +6,7 @@
 #   本 formula 内嵌 UnRAR（非 OSI 许可），core 通常不接受这类依赖。
 #   自家 tap 没有这个限制；同时 LICENSE 仍是 MIT，UnRAR 条款见 THIRD_PARTY_NOTICES.md。
 class AgentUnzip < Formula
-  desc "Untrusted-archive gate: inspect first, extract only if safe"
+  desc "Agent-friendly unzipper: JSON out, never blocks, refuses risky archives"
   homepage "https://github.com/OWNER/aunzip"
   url "https://github.com/OWNER/aunzip/archive/refs/tags/v0.2.0.tar.gz"
   sha256 "REPLACE_WITH_SHA256"
