@@ -146,6 +146,20 @@ CLI 与 GUI 共用同一个 `lib.rs`，修一处两边都好。
 | GBK 文件名 ZIP | 自动修复成「谷小姐照片.jpg」 ✅ |
 | Windows 残留 `$R4N6AX5.jpg` | 自动清理 ✅ |
 
+## 上架 App Store 的就绪度
+
+| 项 | 状态 |
+|---|---|
+| 无 fork/exec（沙箱必需） | ✅ macOS 路径用 `NSWorkspace`，已在进程内调用 |
+| 读取文件来源标记 | ✅ 改用 `libc::getxattr`，不再起 `xattr` 子进程 |
+| 沙箱 entitlements | ✅ `src-tauri/entitlements.plist`（默认未启用，见下） |
+| 内核是静态链接而非调用 CLI | ✅ 沙箱友好 |
+| 签名 + 公证 | ⬜ 需要 Apple Developer（$99/年） |
+| **沙箱下的拖拽读取** | ⚠️ **未验证** —— Tauri 不一定处理 security-scoped bookmark |
+
+> 沙箱配置默认**不启用**：`tauri.conf.json` 里加 `"macOS": { "entitlements": "entitlements.plist" }` 才会生效。
+> 先启用再验证「拖文件进来还能不能读」，否则用户装了商店版会发现拖拽失效。
+
 ## 跨平台现状（诚实版）
 
 | 平台 | 状态 |

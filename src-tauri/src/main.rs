@@ -29,28 +29,53 @@ fn unpack(
 }
 
 /// 在系统文件管理器里定位结果目录
+///
+/// 不使用 fork 子进程：App Sandbox 下 `exec` 会被直接拒绝。
+/// macOS 走 NSWorkspace（进程内调用），Windows 走 explorer /select。
 #[tauri::command]
 fn reveal(path: String) -> Result<(), String> {
     #[cfg(target_os = "macos")]
-    let mut cmd = {
-        let mut c = std::process::Command::new("open");
-        c.arg(&path);
-        c
-    };
+    {
+        use objc2_app_kit::NSWorkspace;
+        use objc2_foundation::{NSArray, NSString, NSURL};
+
+        let p = NSString::from_str(&path);
+        let url = NSURL::fileURLWithPath(&p);
+        let urls = NSArray::from_retained_slice(&[url]);
+        let ws = unsafe { NSWorkspace::sharedWorkspace() };
+
+        // 路径不存在时退化成打开父目录
+        if !std::path::Path::new(&path).exists() {
+            let parent = std::path::Path::new(&path)
+                .parent()
+                .map(|d| d.display().to_string())
+                .unwrap_or_else(|| path.clone());
+            let p2 = NSString::from_str(&parent);
+            let url2 = NSURL::fileURLWithPath(&p2);
+            unsafe { ws.openURL(&url2) };
+            return Ok(());
+        }
+
+        unsafe { ws.activateFileViewerSelectingURLs(&urls) };
+        return Ok(());
+    }
     #[cfg(target_os = "windows")]
-    let mut cmd = {
-        let mut c = std::process::Command::new("explorer");
-        c.arg(&path);
-        c
-    };
+    {
+        std::process::Command::new("explorer")
+            .arg("/select,")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
     #[cfg(all(unix, not(target_os = "macos")))]
-    let mut cmd = {
-        let mut c = std::process::Command::new("xdg-open");
-        c.arg(&path);
-        c
-    };
-    cmd.spawn().map_err(|e| e.to_string())?;
-    Ok(())
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
 }
 
 /// 默认的“解到哪”：压缩包旁边的同名文件夹
