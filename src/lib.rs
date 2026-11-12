@@ -278,7 +278,7 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
     let disguise = sniff::disguise_hint(path, kind);
     let limits = Limits::default();
 
-    let (entries, declared, traversal, executables, encrypted, junk, bomb, spoofing, comment, completeness) =
+    let (entries, declared, traversal, executables, encrypted, junk, bomb, spoofing, comment, completeness, media, docs) =
         if kind.is_archive() {
             let risk = extract::scan(kind, path, &limits)?;
             let sp = risk
@@ -310,9 +310,11 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
                 sp,
                 comment,
                 completeness,
+                risk.media,
+                risk.docs,
             )
         } else {
-            (0, 0, vec![], vec![], 0, 0, false, vec![], None, vec![])
+            (0, 0, vec![], vec![], 0, 0, false, vec![], None, vec![], 0, 0)
         };
 
     let ratio = if meta.len() > 0 {
@@ -320,11 +322,6 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
     } else {
         0.0
     };
-    let blocking = !traversal.is_empty()
-        || !executables.is_empty()
-        || !spoofing.is_empty()
-        || bomb
-        || kind.is_dangerous();
     let origin = read_origin(path);
     let (verdict, headline, mut reasons) = judge(
         kind,
@@ -338,7 +335,12 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
         entries,
         declared,
         meta.len(),
+        media,
+        docs,
     );
+
+    // 只有 danger 才阻断；caution 交给用户判断（否则「纯软件包」会被误伤）
+    let blocking = verdict == "danger";
 
     // 机器判定码：稳定、可枚举，Agent 直接 switch
     let mut codes: Vec<String> = Vec::new();
@@ -358,6 +360,11 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
         codes.push("PATH_TRAVERSAL".into());
     }
     if !executables.is_empty() {
+        if media + docs > 0 {
+            codes.push("EXECUTABLE_IN_MEDIA".into());
+        } else {
+            codes.push("EXECUTABLE_PACKAGE".into());
+        }
         codes.push("EXECUTABLE_ENTRY".into());
     }
     if bomb {
@@ -482,6 +489,8 @@ fn judge(
     entries: usize,
     declared: u64,
     compressed: u64,
+    media: usize,
+    docs: usize,
 ) -> (String, String, Vec<String>) {
     if matches!(kind, Kind::Rar | Kind::Rar4) && !cfg!(feature = "rar") {
         return (
@@ -545,12 +554,31 @@ fn judge(
     if !executables.is_empty() {
         let uniq = dedupe_names(executables);
         let names: Vec<String> = uniq.iter().take(3).cloned().collect();
+        // 判断「协调性」：软件包里的 .app 正常；照片包里的 .app 才是钓鱼
+        let media_or_doc = media + docs;
+        if media_or_doc > 0 {
+            return (
+                "danger".into(),
+                "危险：照片/文档里夹着程序".into(),
+                vec![
+                    format!(
+                        "包里有 {} 个媒体/文档文件，同时有 {} 个可执行内容：{}。",
+                        media_or_doc,
+                        uniq.len(),
+                        names.join("、")
+                    ),
+                    "交付照片或文件时不会夹带安装程序。这是骗你装软件最常见的形态，建议整包删掉。".into(),
+                ],
+            );
+        }
+        // 整包就是软件包/安装包：正常，只是要确认来源
         return (
-            "danger".into(),
-            "危险：包里裹着安装程序".into(),
+            "caution".into(),
+            "这是个软件包，里面有程序".into(),
             vec![
-                format!("找到了 {} 个可执行内容：{}。", uniq.len(), names.join("、")),
-                "「照片包」里出现安装程序，是骗你装软件最常见的套路。如果你没在等这个程序，建议整包删掉。".into(),
+                format!("{} 个可执行内容：{}。", uniq.len(), names.join("、")),
+                "包里没有照片或文档，看起来就是一个正常的软件/安装包。确认来源可靠（官网、同事、你自己的构建产物）就可以解。".into(),
+                "解压后不要给它管理员权限，也不要绕过系统的「无法验证开发者」提示。".into(),
             ],
         );
     }

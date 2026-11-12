@@ -142,6 +142,12 @@
   }
   button.primary:hover { filter: brightness(1.06); }
   button.ghost { color: var(--sub); }
+  button.danger-btn {
+    background: color-mix(in srgb, var(--bad) 12%, transparent);
+    color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
+    font-weight: 600;
+  }
+  button.danger-btn:hover { background: color-mix(in srgb, var(--bad) 18%, transparent); }
   button:disabled { opacity: .45; cursor: not-allowed; }
 
   input[type=text], input[type=password] {
@@ -415,11 +421,12 @@ function render(el, path, info) {
   body += `<div class="field"><label>解到</label>
     <input type="text" class="dest" placeholder="留空 = 压缩包旁边的同名文件夹" style="flex:1" /></div>`;
 
-  body += `<div class="actions">
-      <button class="primary go">解压</button>
-      ${info.blocking ? '<button class="force ghost">仍要解压（我知道风险）</button>' : ''}
-    </div>
-    <div class="slot"></div>`;
+  const isDanger = info.verdict === 'danger';
+  body += `<div class="actions">` +
+    (isDanger
+      ? '<button class="force danger-btn">仍要解压（我知道风险）</button>'
+      : '<button class="primary go">解压</button>') +
+    `</div><div class="slot"></div>`;
 
   el.innerHTML = body;
 
@@ -428,7 +435,7 @@ function render(el, path, info) {
   const pwEl = el.querySelector('.pw');
 
   const run = async (force) => {
-    const btn = el.querySelector('.go');
+    const btn = el.querySelector('.go') || el.querySelector('.force');
     const fbtn = el.querySelector('.force');
     btn.disabled = true; if (fbtn) fbtn.disabled = true;
     const old = btn.textContent;
@@ -472,13 +479,15 @@ function render(el, path, info) {
       slot.querySelector('.reveal').onclick = () => invoke('reveal', { path: r.dir }).catch(() => {});
     } catch (e) {
       slot.innerHTML = `<div class="result"><span class="note bad">✗ ${esc(e)}</span></div>`;
-      btn.disabled = false; if (fbtn) fbtn.disabled = false;
-      btn.textContent = old;
+      if (btn) { btn.disabled = false; btn.textContent = old; }
+      if (fbtn && fbtn !== btn) fbtn.disabled = false;
     }
   };
 
-  el.querySelector('.go').onclick = () => run(false);
-  if (el.querySelector('.force')) el.querySelector('.force').onclick = () => run(true);
+  const goBtn = el.querySelector('.go');
+  const forceBtn = el.querySelector('.force');
+  if (goBtn) goBtn.onclick = () => run(false);
+  if (forceBtn) forceBtn.onclick = () => run(true);
 }
 
 if (listen) {

@@ -164,6 +164,9 @@ pub struct Risk {
     pub comment: Option<Vec<u8>>,
     /// 顶层目录 / 该目录下文件数
     pub groups: Vec<(String, usize)>,
+    /// 内容构成：媒体 / 文档（用来判断「照片包里夹程序」这种不协调）
+    pub media: usize,
+    pub docs: usize,
     pub junk: usize,
     pub bomb_suspect: bool,
 }

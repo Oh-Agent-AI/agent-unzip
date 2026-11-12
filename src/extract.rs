@@ -105,6 +105,26 @@ pub fn scan(kind: Kind, src: &Path, limits: &Limits) -> Result<Risk> {
     }
 }
 
+/// 内容分类：只看扩展名，用来判断包的整体形态
+pub enum Bucket {
+    Media,
+    Doc,
+    Other,
+}
+
+pub fn ext_bucket(name: &str) -> Bucket {
+    let lower = name.to_ascii_lowercase();
+    let ext = lower.rsplit('.').next().unwrap_or("");
+    match ext {
+        "jpg" | "jpeg" | "png" | "gif" | "heic" | "webp" | "bmp" | "tif" | "tiff" | "raw"
+        | "cr2" | "nef" | "arw" | "mp4" | "mov" | "avi" | "mkv" | "m4v" => Bucket::Media,
+        "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "txt" | "md" | "csv" => {
+            Bucket::Doc
+        }
+        _ => Bucket::Other,
+    }
+}
+
 fn finish_risk(mut risk: Risk, limits: &Limits, compressed: u64) -> Risk {
     if risk.entries > limits.max_entries {
         risk.bomb_suspect = true;
@@ -144,6 +164,11 @@ fn rar_scan(src: &Path, limits: &Limits) -> Result<Risk> {
             }
             if let Some(h) = crate::safe::name_spoof(&name) {
                 risk.spoofing.push((name.clone(), h));
+            }
+            match ext_bucket(&name) {
+                Bucket::Media => risk.media += 1,
+                Bucket::Doc => risk.docs += 1,
+                _ => {}
             }
         }
             if is_junk(&name) {
@@ -281,6 +306,11 @@ fn zip_scan(src: &Path, limits: &Limits) -> Result<Risk> {
         if let Some(h) = crate::safe::name_spoof(&name) {
             risk.spoofing.push((name.clone(), h));
         }
+            match ext_bucket(&name) {
+                Bucket::Media => risk.media += 1,
+                Bucket::Doc => risk.docs += 1,
+                _ => {}
+            }
         if is_junk(&name) {
             risk.junk += 1;
         }

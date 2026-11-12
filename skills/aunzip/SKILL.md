@@ -56,7 +56,8 @@ aunzip inspect <file>            # 输出 JSON，不写任何文件
 | `DISGUISED_ARCHIVE` | 扩展名是压缩包，内容是程序 | 停手，建议删除 |
 | `SPOOFED_NAME` | 文件名含 RTL/零宽字符或双扩展名 | 停手 |
 | `PATH_TRAVERSAL` | 条目试图写到目标目录外 | 停手 |
-| `EXECUTABLE_ENTRY` | 包内有可执行内容 | 停手，除非用户明确说「我知道，继续」 |
+| `EXECUTABLE_IN_MEDIA` | **照片/文档里夹着程序** | 停手，这几乎一定是钓鱼 |
+| `EXECUTABLE_PACKAGE` | 整包就是个软件包（没有照片/文档） | **可继续**，确认来源可靠即可 |
 | `POSSIBLE_BOMB` | 条目数/压缩比异常 | 停手 |
 | `ENCRYPTED` | 有密码 | 要密码 |
 | `NOT_AN_ARCHIVE` | 不是压缩包 | 停手 |
@@ -69,6 +70,10 @@ aunzip inspect <file>            # 输出 JSON，不写任何文件
 ```
 
 `requires_human = true` 时：**必须**先问用户，得到明确同意后才能加 `--force`。
+
+> 判定看的是「协调性」，不是「有没有程序」：
+> 交付照片时不会夹带安装程序 → 夹带 = 危险；
+> 一个纯软件包里有 `.app` 很正常 → 提示即可，不要拦。
 
 ## 2. 解压
 
