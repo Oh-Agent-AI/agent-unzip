@@ -1,8 +1,8 @@
 [package]
-name = "pak-desktop"
-version = "0.1.0"
+name = "agent-unzip-desktop"
+version = "0.2.0"
 edition = "2021"
-description = "pak 解压器桌面版"
+description = "agent-unzip 桌面版"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -17,4 +17,4 @@ objc2-app-kit = { version = "0.3", features = ["NSWorkspace", "NSRunningApplicat
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-pak = { path = ".." }
+agent-unzip = { path = ".." }

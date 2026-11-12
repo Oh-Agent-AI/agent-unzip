@@ -369,7 +369,7 @@ fn reader_for(kind: Kind, src: &Path) -> Result<Box<dyn Read>> {
         Kind::Bz2 => Box::new(bzip2_rs::DecoderReader::new(f)),
         Kind::Xz => {
             // 先流式解到临时文件，再当 tar 读（避免整包进内存）
-            let tmp = std::env::temp_dir().join(format!("pak-xz-{}.tar", std::process::id()));
+            let tmp = std::env::temp_dir().join(format!("aunzip-xz-{}.tar", std::process::id()));
             let mut w = BufWriter::new(File::create(&tmp)?);
             let mut r = f;
             lzma_rs::xz_decompress(&mut r, &mut w)?;

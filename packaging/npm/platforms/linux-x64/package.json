@@ -1,7 +1,7 @@
 {
-  "name": "@pak/cli-linux-x64",
-  "version": "0.1.0",
-  "description": "pak binary for linux x64",
+  "name": "agent-unzip-linux-x64",
+  "version": "0.2.0",
+  "description": "aunzip binary for linux x64",
   "os": [
     "linux"
   ],
@@ -9,12 +9,12 @@
     "x64"
   ],
   "files": [
-    "pak"
+    "aunzip"
   ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/pak.git"
+    "url": "https://github.com/OWNER/aunzip.git"
   },
   "preferUnplugged": true
 }

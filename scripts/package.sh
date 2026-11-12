@@ -5,14 +5,14 @@ cd "$(dirname "$0")/.."
 
 VERSION="$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)"
 TARGET="$(rustc -vV | awk '/host:/{print $2}')"
-NAME="pak-${TARGET}"
+NAME="aunzip-${TARGET}"
 OUT="dist/${NAME}"
 
-echo "▸ 构建 pak ${VERSION} (${TARGET})"
+echo "▸ 构建 aunzip ${VERSION} (${TARGET})"
 cargo build --release
 
 rm -rf "${OUT}" && mkdir -p "${OUT}"
-cp target/release/pak "${OUT}/"
+cp target/release/aunzip "${OUT}/"
 cp LICENSE THIRD_PARTY_NOTICES.md README.md "${OUT}/"
 
 tar -C "${OUT}" -czf "dist/${NAME}.tar.gz" .

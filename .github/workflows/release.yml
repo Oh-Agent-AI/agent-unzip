@@ -15,16 +15,16 @@ jobs:
         include:
           - os: macos-14          # Apple Silicon
             target: aarch64-apple-darwin
-            name: pak-aarch64-apple-darwin
+            name: aunzip-aarch64-apple-darwin
           - os: macos-13          # Intel
             target: x86_64-apple-darwin
-            name: pak-x86_64-apple-darwin
+            name: aunzip-x86_64-apple-darwin
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            name: pak-x86_64-unknown-linux-gnu
+            name: aunzip-x86_64-unknown-linux-gnu
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            name: pak-x86_64-pc-windows-msvc
+            name: aunzip-x86_64-pc-windows-msvc
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p out
-          cp target/${{ matrix.target }}/release/pak out/
+          cp target/${{ matrix.target }}/release/aunzip out/
           cp LICENSE THIRD_PARTY_NOTICES.md README.md out/
           tar -C out -czf ${{ matrix.name }}.tar.gz .
           shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p out
-          cp target/${{ matrix.target }}/release/pak.exe out/
+          cp target/${{ matrix.target }}/release/aunzip.exe out/
           cp LICENSE THIRD_PARTY_NOTICES.md README.md out/
           cd out && 7z a ../${{ matrix.name }}.zip . && cd ..
           sha256sum ${{ matrix.name }}.zip > ${{ matrix.name }}.zip.sha256
@@ -73,14 +73,14 @@ jobs:
       - run: cargo build --release --no-default-features
       - name: Package
         run: |
-          mkdir -p out && cp target/release/pak out/
+          mkdir -p out && cp target/release/aunzip out/
           cp LICENSE README.md out/
-          tar -C out -czf pak-x86_64-unknown-linux-gnu-norar.tar.gz .
-          shasum -a 256 pak-x86_64-unknown-linux-gnu-norar.tar.gz > pak-x86_64-unknown-linux-gnu-norar.tar.gz.sha256
+          tar -C out -czf aunzip-x86_64-unknown-linux-gnu-norar.tar.gz .
+          shasum -a 256 aunzip-x86_64-unknown-linux-gnu-norar.tar.gz > aunzip-x86_64-unknown-linux-gnu-norar.tar.gz.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: pak-norar-linux
-          path: pak-x86_64-unknown-linux-gnu-norar.tar.gz*
+          name: aunzip-norar-linux
+          path: aunzip-x86_64-unknown-linux-gnu-norar.tar.gz*
 
   release:
     needs: [build, free-build]

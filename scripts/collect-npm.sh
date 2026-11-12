@@ -20,10 +20,10 @@ extract() { # $1=产物名 $2=npm 目录 $3=二进制名
   echo "✓ ${dir}"
 }
 
-extract pak-aarch64-apple-darwin          darwin-arm64 pak
-extract pak-x86_64-apple-darwin           darwin-x64   pak
-extract pak-x86_64-unknown-linux-gnu      linux-x64    pak
-extract pak-x86_64-pc-windows-msvc        win32-x64    pak.exe
+extract aunzip-aarch64-apple-darwin          darwin-arm64 aunzip
+extract aunzip-x86_64-apple-darwin           darwin-x64   aunzip
+extract aunzip-x86_64-unknown-linux-gnu      linux-x64    aunzip
+extract aunzip-x86_64-pc-windows-msvc        win32-x64    aunzip.exe
 
 echo
 echo "现在可以逐个发布："

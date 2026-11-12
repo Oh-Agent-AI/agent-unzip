@@ -21,6 +21,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "agent-unzip"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "bzip2-rs",
+ "encoding_rs",
+ "flate2",
+ "kamadak-exif",
+ "libc",
+ "lzma-rs",
+ "serde",
+ "serde_json",
+ "sevenz-rust2",
+ "tar",
+ "unrar",
+ "zip",
+]
+
+[[package]]
+name = "agent-unzip-desktop"
+version = "0.2.0"
+dependencies = [
+ "agent-unzip",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+]
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2446,39 +2479,6 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
-name = "pak"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bzip2-rs",
- "encoding_rs",
- "flate2",
- "kamadak-exif",
- "libc",
- "lzma-rs",
- "serde",
- "serde_json",
- "sevenz-rust2",
- "tar",
- "unrar",
- "zip",
-]
-
-[[package]]
-name = "pak-desktop"
-version = "0.1.0"
-dependencies = [
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "pak",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
-]
 
 [[package]]
 name = "pango"

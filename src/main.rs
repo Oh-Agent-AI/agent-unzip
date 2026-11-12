@@ -1,6 +1,6 @@
-//! pak 命令行入口 —— 逻辑全在 lib 里，GUI 复用同一套。
+//! aunzip 命令行入口 —— 逻辑全在 lib 里，GUI 复用同一套。
 
-use pak::{inspect, unpack, Inspection};
+use agent_unzip::{inspect, unpack, Inspection};
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -17,6 +17,10 @@ struct Opts {
     json: bool,
     /// 只体检，不落盘
     dry_run: bool,
+    /// pack 的输出文件
+    output: Option<PathBuf>,
+    /// pack 的压缩级别 0-9
+    level: u32,
 }
 
 fn main() -> ExitCode {
@@ -26,7 +30,7 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     if argv.iter().any(|a| a == "-V" || a == "--version") {
-        println!("pak {VERSION}");
+        println!("aunzip {VERSION}");
         return ExitCode::SUCCESS;
     }
     if argv.iter().any(|a| a == "--schema") {
@@ -42,6 +46,8 @@ fn main() -> ExitCode {
         color: std::io::stdout().is_terminal(),
         json: false,
         dry_run: false,
+        output: None,
+        level: 6,
     };
     let mut files: Vec<String> = Vec::new();
     let mut sub = "extract";
@@ -51,6 +57,9 @@ fn main() -> ExitCode {
             sub = "inspect";
             has_sub = true;
         } else if first == "extract" {
+            has_sub = true;
+        } else if first == "pack" {
+            sub = "pack";
             has_sub = true;
         }
     }
@@ -77,6 +86,18 @@ fn main() -> ExitCode {
             "--no-color" => opts.color = false,
             "--json" => opts.json = true,
             "--dry-run" | "-n" => opts.dry_run = true,
+            "-o" | "--output" => match it.next() {
+                Some(v) => opts.output = Some(PathBuf::from(v)),
+                None => {
+                    eprintln!("-o 后面要跟输出文件名");
+                    return ExitCode::FAILURE;
+                }
+            },
+            "-l" | "--level" => {
+                if let Some(v) = it.next() {
+                    opts.level = v.parse().unwrap_or(6).min(9);
+                }
+            }
             _ if a.starts_with('-') && a.len() > 1 => {
                 eprintln!("不认识的参数：{a}");
                 return ExitCode::FAILURE;
@@ -87,6 +108,13 @@ fn main() -> ExitCode {
     if files.is_empty() {
         usage();
         return ExitCode::FAILURE;
+    }
+
+    if sub == "pack" {
+        return match run_pack(&files, &opts) {
+            0 => ExitCode::SUCCESS,
+            c => ExitCode::from(c as u8),
+        };
     }
 
     let mut code = 0i32;
@@ -107,27 +135,156 @@ fn main() -> ExitCode {
     }
 }
 
+/// 打包：从「防别人」变成「防自己」
+fn run_pack(inputs: &[String], opts: &Opts) -> i32 {
+    let c = opts.color;
+    if inputs.is_empty() {
+        eprintln!("pack 需要至少一个文件或目录");
+        return EXIT_FAILED;
+    }
+    let paths: Vec<PathBuf> = inputs.iter().map(PathBuf::from).collect();
+
+    // 输出名：默认取第一个输入的名字
+    let output = match &opts.output {
+        Some(o) => o.clone(),
+        None => {
+            let first = paths[0].file_name().unwrap_or_default().to_string_lossy().to_string();
+            let stem = first.rsplit_once('.').map(|(a, _)| a.to_string()).unwrap_or(first);
+            PathBuf::from(format!("{stem}.zip"))
+        }
+    };
+
+    let check = match agent_unzip::check_pack_inputs(&paths) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("  {} {e:#}", paint(c, "31;1", "✗"));
+            return EXIT_FAILED;
+        }
+    };
+
+    if opts.json {
+        if opts.dry_run {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "schema": "aunzip/1", "ok": true, "mode": "pack-check",
+                    "check": check,
+                    "policy": { "safe_to_pack": !check.blocking(), "requires_human": check.blocking() }
+                })
+            );
+            return if check.blocking() { EXIT_DANGER } else { EXIT_OK };
+        }
+        return match agent_unzip::pack(&paths, &output, opts.password.as_deref(), opts.level, opts.force) {
+            Ok(r) => {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "schema": "aunzip/1", "ok": true, "mode": "pack",
+                        "check": check, "report": r
+                    })
+                );
+                EXIT_OK
+            }
+            Err(e) => {
+                println!(
+                    "{}",
+                    serde_json::json!({
+                        "schema": "aunzip/1", "ok": false, "mode": "pack",
+                        "check": check,
+                        "error": { "code": "PACK_FAILED", "message": format!("{e:#}") }
+                    })
+                );
+                EXIT_FAILED
+            }
+        };
+    }
+
+    println!(
+        "{} {} 个条目 · {}",
+        paint(c, "1;36", "▸ 打包"),
+        check.entries,
+        human(check.bytes)
+    );
+    if !check.executables.is_empty() {
+        println!("  {} 含可执行文件（别把程序发给客户）：", paint(c, "31;1", "⛔"));
+        for x in check.executables.iter().take(3) {
+            println!("     · {x}");
+        }
+    }
+    if !check.hidden.is_empty() {
+        println!("  {} 含隐藏文件 / 密钥目录：", paint(c, "31;1", "⛔"));
+        for x in check.hidden.iter().take(3) {
+            println!("     · {x}");
+        }
+    }
+    if !check.pii.is_empty() {
+        println!("  {} 文件名可能含个人信息：", paint(c, "33;1", "⚠"));
+        for x in check.pii.iter().take(3) {
+            println!("     · {x}");
+        }
+    }
+    if check.blocking() && !opts.force {
+        println!(
+            "  {} 检查未通过，已中止。确认无误后加 {} 再试。",
+            paint(c, "33;1", "⚠"),
+            paint(c, "1", "--force")
+        );
+        return EXIT_DANGER;
+    }
+
+    match agent_unzip::pack(&paths, &output, opts.password.as_deref(), opts.level, opts.force) {
+        Ok(r) => {
+            println!(
+                "  {} 完成 {} 个文件 · {} · {}{} · {:.2}s",
+                paint(c, "32;1", "✓"),
+                r.entries,
+                human(r.bytes),
+                r.format,
+                if r.encrypted { " · AES-256 加密" } else { "" },
+                r.seconds
+            );
+            println!("     → {}", r.archive);
+            EXIT_OK
+        }
+        Err(e) => {
+            eprintln!("  {} {e:#}", paint(c, "31;1", "✗"));
+            if e.to_string().contains("检查") {
+                EXIT_DANGER
+            } else {
+                EXIT_FAILED
+            }
+        }
+    }
+}
+
 /// 自描述契约：Agent 一次调用就知道能做什么、会返回什么、怎么失败
 fn schema_json() -> String {
     serde_json::json!({
-        "schema": "pak/1",
-        "name": "pak",
+        "schema": "aunzip/1",
+        "name": "aunzip",
         "version": VERSION,
         "description": "不可信压缩包的安全闸门：先判定，再决定是否解压",
         "commands": [
             {
                 "name": "inspect",
-                "synopsis": "pak inspect <file>...",
+                "synopsis": "aunzip inspect <file>...",
                 "side_effects": "none",
                 "output": "inspection + policy",
                 "use_when": "决定要不要解压之前"
             },
             {
                 "name": "extract",
-                "synopsis": "pak extract [--json] [-C dir] [-p password] [--force] <file>...",
+                "synopsis": "aunzip extract [--json] [-C dir] [-p password] [--force] <file>...",
                 "side_effects": "writes files next to archive or into -C dir; never overwrites",
                 "output": "inspection + report",
                 "use_when": "判定为非危险后"
+            },
+            {
+                "name": "pack",
+                "synopsis": "aunzip pack <paths...> [-o out.zip] [-p password] [-l 0-9] [--json] [--force]",
+                "side_effects": "creates one archive; refuses when pre-pack check fails",
+                "output": "check + report",
+                "use_when": "要把结果交付给用户时；打包前会检查是否误带可执行文件/隐藏文件/个人信息"
             }
         ],
         "exit_codes": {
@@ -147,14 +304,20 @@ fn schema_json() -> String {
             "EXECUTABLE_ENTRY": "包内有可执行内容",
             "POSSIBLE_BOMB": "条目数或压缩比异常，疑似压缩炸弹",
             "ENCRYPTED": "条目加密，需 -p 提供密码",
-            "COUNT_MISMATCH": "目录名承诺的数量与实际文件数不符（非安全问题）"
+            "COUNT_MISMATCH": "目录名承诺的数量与实际文件数不符（非安全问题）",
+            "PACK_EXECUTABLE": "要打包的内容里有可执行文件",
+            "PACK_HIDDEN": "要打包的内容里有隐藏文件或密钥目录（.env/.git/.ssh）",
+            "PACK_PII": "文件名里疑似含手机号/身份证等个人信息",
+            "RAR_DISABLED": "这个构建未编入 RAR 支持"
         },
         "guarantees": [
             "永不交互：不会停下来等输入",
             "永不覆盖：重名自动加 _2",
             "原子落位：先写暂存目录，成功才改名",
             "只读判定：inspect 不解压任何数据",
-            "安全默认：danger 不会被自动绕过，--force 需人类确认"
+            "安全默认：danger 不会被自动绕过，--force 需人类确认",
+            "打包不覆盖：目标已存在则失败，不会静默覆盖",
+            "支持格式：解 rar/zip/7z/tar/gz/bz2/xz；打 zip/tar.gz/tar（不提供 RAR 压缩）"
         ]
     })
     .to_string()
@@ -167,7 +330,7 @@ const EXIT_NEED_PASSWORD: i32 = 11;
 const EXIT_FAILED: i32 = 12;
 const EXIT_NOT_ARCHIVE: i32 = 13;
 
-fn code_for(insp: &pak::Inspection, opts: &Opts) -> i32 {
+fn code_for(insp: &agent_unzip::Inspection, opts: &Opts) -> i32 {
     if insp.dangerous || insp.verdict == "danger" {
         EXIT_DANGER
     } else if !insp.is_archive {
@@ -187,7 +350,7 @@ fn run_json(src: &Path, opts: &Opts) -> i32 {
             println!(
                 "{}",
                 serde_json::json!({
-                    "schema": "pak/1",
+                    "schema": "aunzip/1",
                     "ok": false,
                     "path": src.display().to_string(),
                     "error": { "code": "INSPECT_FAILED", "message": format!("{e:#}") }
@@ -201,7 +364,7 @@ fn run_json(src: &Path, opts: &Opts) -> i32 {
         println!(
             "{}",
             serde_json::json!({
-                "schema": "pak/1",
+                "schema": "aunzip/1",
                 "ok": true,
                 "mode": "inspect",
                 "inspection": insp,
@@ -220,7 +383,7 @@ fn run_json(src: &Path, opts: &Opts) -> i32 {
             println!(
                 "{}",
                 serde_json::json!({
-                    "schema": "pak/1",
+                    "schema": "aunzip/1",
                     "ok": true,
                     "mode": "extract",
                     "inspection": insp,
@@ -233,7 +396,7 @@ fn run_json(src: &Path, opts: &Opts) -> i32 {
             println!(
                 "{}",
                 serde_json::json!({
-                    "schema": "pak/1",
+                    "schema": "aunzip/1",
                     "ok": false,
                     "mode": "extract",
                     "inspection": insp,
@@ -247,15 +410,16 @@ fn run_json(src: &Path, opts: &Opts) -> i32 {
 
 fn usage() {
     println!(
-        "pak {VERSION} —— 跨平台解压缩器（RAR 优先）
+        "aunzip {VERSION} —— 跨平台解压缩器（RAR 优先）
 
 用法：
-  pak inspect <压缩包...>    只体检，输出 JSON（给 Agent / 脚本）
-  pak extract <压缩包...>    解压并输出 JSON
-  pak <压缩包...>            解压（人看的输出）
-  pak -C <目录> <压缩包...>   解压到指定目录
-  pak -p <密码> <压缩包>      解压加密包
-  pak --force <压缩包>        体检有风险时仍然解压
+  aunzip inspect <压缩包...>    只体检，输出 JSON（给 Agent / 脚本）
+  aunzip extract <压缩包...>    解压并输出 JSON
+  aunzip pack <文件/目录...> -o <输出.zip>   打包（默认 zip，可 AES-256 加密）
+  aunzip <压缩包...>            解压（人看的输出）
+  aunzip -C <目录> <压缩包...>   解压到指定目录
+  aunzip -p <密码> <压缩包>      解压加密包
+  aunzip --force <压缩包>        体检有风险时仍然解压
 
 选项：
   -C, --dir <目录>   输出目录
@@ -263,7 +427,7 @@ fn usage() {
   -f, --force        忽略风险提示继续
   -q, --quiet        少打印
       --no-color     关掉颜色
-      --json         输出 JSON（稳定 schema: pak/1）
+      --json         输出 JSON（稳定 schema: aunzip/1）
   -n, --dry-run      只体检不落盘
 
 退出码：0 正常 · 10 判定危险 · 11 需要密码 · 12 解压失败 · 13 不是压缩包

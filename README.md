@@ -89,9 +89,36 @@
 
 只做**结构性判断**：类型不符、可执行内容、路径穿越、体积炸弹、加密状态。零误报、永不需要更新。
 
+## 打包（反向的闸门）
+
+```bash
+aunzip pack 交付目录 -o 交付包.zip -p 13800000000   # zip + AES-256
+aunzip pack 项目 -o 项目.tar.gz                     # 开发用
+```
+
+打包的风险和解压相反：解压怕别人害你，打包怕**你把不该给的给出去**。
+所以打包前默认检查，不通过就不写盘：
+
+```
+▸ 打包 5 个条目 · 37 B
+  ⛔ 含隐藏文件 / 密钥目录：
+     · .env
+  ⚠ 检查未通过，已中止。确认无误后加 --force 再试。
+```
+
+检查项：可执行文件、隐藏文件/密钥目录（`.env`/`.git`/`.ssh`）、文件名里的手机号与身份证。
+
+> **不支持 RAR 压缩**，不是缺功能，是 UnRAR 许可明令禁止。
+
 ## 支持格式
 
-RAR（RAR4 / RAR5 / 固实 / 分卷 / AES 加密）· ZIP · 7Z · TAR · TAR.GZ · GZ · BZ2 · XZ
+| | 能解 | 能打 |
+|---|---|---|
+| RAR (4/5/固实/分卷/加密) | ✅ | ❌ 许可禁止 |
+| ZIP | ✅ | ✅（AES-256） |
+| 7Z | ✅ | ❌ 暂不做 |
+| TAR / TAR.GZ | ✅ | ✅ |
+| GZ / BZ2 / XZ | ✅ | ❌ |
 
 ## 两种用法
 
@@ -106,20 +133,20 @@ open "/Users/Admin/Downloads/安全解压缩.app"
 **命令行**（给愿意用终端的人）
 
 ```bash
-cd pak
+cd aunzip
 cargo build --release
-./target/release/pak 照片.rar          # 结论 + 解压
-./target/release/pak -C ~/输出 照片.rar
-./target/release/pak -p 密码 加密包.rar
-./target/release/pak --force 可疑包.zip # 明知有风险仍要解
+./target/release/aunzip 照片.rar          # 结论 + 解压
+./target/release/aunzip -C ~/输出 照片.rar
+./target/release/aunzip -p 密码 加密包.rar
+./target/release/aunzip --force 可疑包.zip # 明知有风险仍要解
 ```
 
-> 内部 crate 名仍叫 `pak`（历史原因，也方便命令行输入），产品对外名称是「安全解压缩」。
+> 内部 crate 名仍叫 `aunzip`（历史原因，也方便命令行输入），产品对外名称是「安全解压缩」。
 
 ## 工程结构
 
 ```
-pak/
+aunzip/
 ├── src/
 │   ├── lib.rs        内核：inspect（体检+结论+来源）/ unpack（解压）
 │   ├── sniff.rs      魔法字节识别：认内容，不认扩展名

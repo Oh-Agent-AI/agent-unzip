@@ -1,4 +1,4 @@
-//! pak 内核库 —— CLI 和 Tauri 桌面壳共用同一套逻辑。
+//! aunzip 内核库 —— CLI 和 Tauri 桌面壳共用同一套逻辑。
 //!
 //! 对外只暴露两个动作：
 //!   `inspect`  拍照体检，不动硬盘
@@ -179,6 +179,38 @@ impl ContentSummary {
             parts.join(" · ")
         }
     }
+}
+
+/// 打包前检查结果：打的是「我自己给出去的东西」，所以要防的是泄漏
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct PackCheck {
+    pub entries: usize,
+    pub bytes: u64,
+    /// 可执行文件（别把自己的程序发给客户）
+    pub executables: Vec<String>,
+    /// 隐藏文件 / 密钥目录
+    pub hidden: Vec<String>,
+    /// 文件名里疑似 PII
+    pub pii: Vec<String>,
+    pub codes: Vec<String>,
+}
+
+impl PackCheck {
+    pub fn blocking(&self) -> bool {
+        !self.executables.is_empty() || !self.hidden.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PackReport {
+    pub archive: String,
+    pub format: String,
+    pub entries: usize,
+    pub bytes: u64,
+    pub encrypted: bool,
+    pub seconds: f64,
+    pub warnings: Vec<String>,
+    pub codes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -457,7 +489,7 @@ fn judge(
             "这个版本不带 RAR 支持".into(),
             vec![
                 "它是 RAR 压缩包，但当前构建裁掉了 UnRAR（自由软件版）。".into(),
-                "要解它请安装带 rar 特性的构建：cargo install pak --features rar".into(),
+                "要解它请安装带 rar 特性的构建：cargo install aunzip --features rar".into(),
             ],
         );
     }
@@ -711,7 +743,7 @@ pub fn unpack(
     };
     let base = strip_known_ext(&path.file_name().unwrap_or_default().to_string_lossy());
     let final_dir = unique_dir(&parent, if base.trim().is_empty() { "解压结果" } else { base.trim() });
-    let staging = parent.join(format!(".pak-tmp-{}-{}", std::process::id(), fast_rand()));
+    let staging = parent.join(format!(".aunzip-tmp-{}-{}", std::process::id(), fast_rand()));
 
     let t0 = std::time::Instant::now();
     let limits = Limits::default();
@@ -868,6 +900,238 @@ fn exif_digest(p: &Path) -> Option<(Option<String>, Option<String>, Option<Strin
             .get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY)
             .is_some();
     Some((camera, software, dt, gps))
+}
+
+// ---------------------------------------------------------------- 打包
+
+/// 递归收集要打包的文件：(绝对路径, 包内相对路径)
+fn collect_inputs(path: &Path, base: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<()> {
+    if path.is_dir() {
+        for e in fs::read_dir(path)?.flatten() {
+            collect_inputs(&e.path(), base, out)?;
+        }
+    } else if path.is_file() {
+        let rel = path
+            .strip_prefix(base)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| path.file_name().unwrap_or_default().to_string_lossy().to_string());
+        out.push((path.to_path_buf(), rel.replace('\\', "/")));
+    }
+    Ok(())
+}
+
+/// 文件名里的敏感信息：手机号 / 身份证 / 明确的字眼
+fn find_pii(s: &str) -> Option<&'static str> {
+    let lower = s.to_lowercase();
+    for kw in ["身份证", "手机号", "手机号码", "银行卡", "密码", "住址"] {
+        if lower.contains(kw) {
+            return Some("文件名含敏感字眼");
+        }
+    }
+    // 中国大陆手机号：1 开头、第二位 3-9、共 11 位
+    let b: Vec<char> = s.chars().collect();
+    let mut i = 0;
+    while i + 11 <= b.len() {
+        if b[i] == '1'
+            && b[i + 1].is_ascii_digit()
+            && ('3'..='9').contains(&b[i + 1])
+            && b[i..i + 11].iter().all(|c| c.is_ascii_digit())
+        {
+            let before_ok = i == 0 || !b[i - 1].is_ascii_digit();
+            let after_ok = i + 11 >= b.len() || !b[i + 11].is_ascii_digit();
+            if before_ok && after_ok {
+                return Some("文件名含手机号");
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+fn is_secret_dir(name: &str) -> bool {
+    matches!(name, ".git" | ".ssh" | ".gnupg" | ".aws" | ".kube")
+}
+
+/// 打包前检查（不写盘）
+pub fn check_pack_inputs(inputs: &[PathBuf]) -> Result<PackCheck> {
+    let mut out = PackCheck::default();
+    for input in inputs {
+        if !input.exists() {
+            bail!("路径不存在：{}", input.display());
+        }
+        let mut files = Vec::new();
+        collect_inputs(input, input, &mut files)?;
+        if input.is_file() {
+            // 单文件：相对名就是文件名
+            files.clear();
+            collect_inputs_file(input, &mut files)?;
+        }
+        for (abs, rel) in files {
+            out.entries += 1;
+            if let Ok(m) = fs::metadata(&abs) {
+                out.bytes += m.len();
+            }
+            // 隐藏文件 / 密钥目录
+            let mut cur = abs.parent();
+            while let Some(dir) = cur {
+                if let Some(n) = dir.file_name().and_then(|x| x.to_str()) {
+                    if is_secret_dir(n) {
+                        out.hidden.push(format!("{rel}（在 {} 里）", n));
+                        break;
+                    }
+                }
+                cur = dir.parent();
+            }
+            if let Some(name) = abs.file_name().and_then(|x| x.to_str()) {
+                if name.starts_with('.') && name != ".DS_Store" {
+                    out.hidden.push(rel.clone());
+                }
+            }
+            if let Some(k) = safe::executable_kind(&rel) {
+                out.executables.push(format!("{rel}  [{k}]"));
+            } else if let Ok(kind) = sniff::sniff_path(&abs) {
+                if kind.is_dangerous() {
+                    out.executables.push(format!("{rel}  [实际是{}]", kind.label()));
+                }
+            }
+            if let Some(why) = find_pii(&rel) {
+                out.pii.push(format!("{rel} —— {why}"));
+            }
+        }
+    }
+
+    let mut codes = Vec::new();
+    if !out.executables.is_empty() {
+        codes.push("PACK_EXECUTABLE".to_string());
+    }
+    if !out.hidden.is_empty() {
+        codes.push("PACK_HIDDEN".to_string());
+    }
+    if !out.pii.is_empty() {
+        codes.push("PACK_PII".to_string());
+    }
+    if codes.is_empty() {
+        codes.push("OK".to_string());
+    }
+    out.codes = codes;
+    Ok(out)
+}
+
+fn collect_inputs_file(path: &Path, out: &mut Vec<(PathBuf, String)>) -> Result<()> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+    out.push((path.to_path_buf(), name));
+    Ok(())
+}
+
+/// 打包。format 由输出后缀决定：.zip / .tar.gz / .tgz / .tar
+pub fn pack(
+    inputs: &[PathBuf],
+    output: &Path,
+    password: Option<&str>,
+    level: u32,
+    force: bool,
+) -> Result<PackReport> {
+    let check = check_pack_inputs(inputs)?;
+    if check.blocking() && !force {
+        bail!("打包前检查未通过，已中止（确认无误后再加 --force）");
+    }
+
+    // 收集
+    let mut files: Vec<(PathBuf, String)> = Vec::new();
+    for input in inputs {
+        if input.is_dir() {
+            let base = input.parent().unwrap_or(Path::new("."));
+            collect_inputs(input, base, &mut files)?;
+        } else {
+            collect_inputs_file(input, &mut files)?;
+        }
+    }
+    if files.is_empty() {
+        bail!("没有可打包的文件");
+    }
+
+    let name = output.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+    let t0 = std::time::Instant::now();
+    let mut written = 0u64;
+
+    let format = if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
+        "tar.gz"
+    } else if name.ends_with(".tar") {
+        "tar"
+    } else if name.ends_with(".zip") {
+        "zip"
+    } else {
+        bail!("不支持这个输出格式。用 .zip（通用）或 .tar.gz（开发用）");
+    };
+
+    if let Some(parent) = output.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+
+    match format {
+        "zip" => {
+            if password.is_some() && !cfg!(feature = "zip-aes") {
+                // 默认构建里 zip 的 aes-crypto 是开着的，这里只是保险
+            }
+            let f = fs::File::create(output)?;
+            let mut zw = zip::ZipWriter::new(f);
+            let mut opts = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated)
+                .compression_level(Some(level as i64));
+            if let Some(pw) = password {
+                opts = opts.with_aes_encryption(zip::AesMode::Aes256, pw);
+            }
+            for (abs, rel) in &files {
+                let data = fs::read(abs)?;
+                written += data.len() as u64;
+                zw.start_file(rel.as_str(), opts)?;
+                use std::io::Write as _;
+                zw.write_all(&data)?;
+            }
+            zw.finish()?;
+        }
+        _ => {
+            if password.is_some() {
+                bail!("tar 格式不支持密码。要加密请输出 .zip");
+            }
+            let f = fs::File::create(output)?;
+            if format == "tar.gz" {
+                let enc = flate2::write::GzEncoder::new(f, flate2::Compression::new(level));
+                let mut b = tar::Builder::new(enc);
+                for (abs, rel) in &files {
+                    written += fs::metadata(abs).map(|m| m.len()).unwrap_or(0);
+                    b.append_path_with_name(abs, rel)?;
+                }
+                b.into_inner()?.finish()?;
+            } else {
+                let mut b = tar::Builder::new(f);
+                for (abs, rel) in &files {
+                    written += fs::metadata(abs).map(|m| m.len()).unwrap_or(0);
+                    b.append_path_with_name(abs, rel)?;
+                }
+                b.finish()?;
+            }
+        }
+    }
+
+    Ok(PackReport {
+        archive: output.display().to_string(),
+        format: format.to_string(),
+        entries: files.len(),
+        bytes: written,
+        encrypted: password.is_some(),
+        seconds: t0.elapsed().as_secs_f64(),
+        warnings: {
+            let mut w = Vec::new();
+            w.extend(check.executables.iter().map(|x| format!("含可执行文件：{x}")));
+            w.extend(check.hidden.iter().map(|x| format!("含隐藏文件：{x}")));
+            w.extend(check.pii.iter().map(|x| format!("文件名可能含个人信息：{x}")));
+            w
+        },
+        codes: check.codes,
+    })
 }
 
 fn fast_rand() -> u32 {

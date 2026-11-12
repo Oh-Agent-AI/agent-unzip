@@ -6,10 +6,10 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 const platforms = {
-  "darwin arm64": "@pak/cli-darwin-arm64",
-  "darwin x64": "@pak/cli-darwin-x64",
-  "linux x64": "@pak/cli-linux-x64",
-  "win32 x64": "@pak/cli-win32-x64",
+  "darwin arm64": "agent-unzip-darwin-arm64",
+  "darwin x64": "agent-unzip-darwin-x64",
+  "linux x64": "agent-unzip-linux-x64",
+  "win32 x64": "agent-unzip-win32-x64",
 };
 
 const key = `${process.platform} ${process.arch}`;
@@ -20,7 +20,7 @@ if (!pkg) {
     `\npak 暂不支持 ${key}。\n` +
       `可选安装方式：\n` +
       `  • 从 GitHub Releases 下载对应平台的二进制\n` +
-      `  • macOS: brew tap <user>/pak && brew install pak\n`
+      `  • macOS: brew tap <user>/aunzip && brew install aunzip\n`
   );
   process.exit(13);
 }
@@ -29,7 +29,7 @@ let binPath;
 try {
   const pkgJson = require.resolve(`${pkg}/package.json`);
   const dir = path.dirname(pkgJson);
-  binPath = path.join(dir, process.platform === "win32" ? "pak.exe" : "pak");
+  binPath = path.join(dir, process.platform === "win32" ? "aunzip.exe" : "aunzip");
 } catch {
   console.error(
     `\npak: 缺少平台包 ${pkg}。\n` +
@@ -40,7 +40,7 @@ try {
 }
 
 if (!fs.existsSync(binPath)) {
-  console.error(`pak: 平台包存在但二进制缺失：${binPath}\n请重新安装或反馈 issue。`);
+  console.error(`aunzip: 平台包存在但二进制缺失：${binPath}\n请重新安装或反馈 issue。`);
   process.exit(13);
 }
 

@@ -1,8 +1,16 @@
 [package]
-name = "pak"
-version = "0.1.0"
+name = "agent-unzip"
+version = "0.2.0"
 edition = "2021"
-description = "跨平台解压缩器：一次内核，桌面 + 浏览器复用"
+description = "Untrusted-archive gate: inspect first, extract or pack only if safe"
+
+[[bin]]
+name = "aunzip"
+path = "src/main.rs"
+
+[lib]
+name = "agent_unzip"
+path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"

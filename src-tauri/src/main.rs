@@ -1,4 +1,4 @@
-//! pak 桌面壳 —— 窗口 + 三个命令，逻辑全部复用 `pak` 库。
+//! aunzip 桌面壳 —— 窗口 + 三个命令，逻辑全部复用 `agent_unzip` 库。
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 /// 拍照体检：不解压，只读头部与目录
 #[tauri::command]
-fn inspect(path: String) -> Result<pak::Inspection, String> {
-    pak::inspect(Path::new(&path)).map_err(|e| format!("{e:#}"))
+fn inspect(path: String) -> Result<agent_unzip::Inspection, String> {
+    agent_unzip::inspect(Path::new(&path)).map_err(|e| format!("{e:#}"))
 }
 
 /// 真正解压，返回结果卡片需要的一切
@@ -17,9 +17,9 @@ fn unpack(
     dest: Option<String>,
     password: Option<String>,
     force: bool,
-) -> Result<pak::Report, String> {
+) -> Result<agent_unzip::Report, String> {
     let d = dest.map(PathBuf::from);
-    pak::unpack(
+    agent_unzip::unpack(
         Path::new(&path),
         d.as_deref(),
         password.as_deref(),
@@ -91,5 +91,5 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![inspect, unpack, reveal, default_dest])
         .run(tauri::generate_context!())
-        .expect("pak 启动失败");
+        .expect("aunzip 启动失败");
 }
