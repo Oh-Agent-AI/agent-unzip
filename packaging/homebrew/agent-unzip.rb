@@ -7,11 +7,11 @@
 #   自家 tap 没有这个限制；同时 LICENSE 仍是 MIT，UnRAR 条款见 THIRD_PARTY_NOTICES.md。
 class AgentUnzip < Formula
   desc "Agent-friendly unzipper: JSON out, never blocks, refuses risky archives"
-  homepage "https://github.com/Oh-Agent-AI/aunzip"
-  url "https://github.com/Oh-Agent-AI/aunzip/archive/refs/tags/v0.2.0.tar.gz"
-  sha256 "REPLACE_WITH_SHA256"
+  homepage "https://github.com/Oh-Agent-AI/agent-unzip"
+  url "https://github.com/Oh-Agent-AI/agent-unzip/archive/refs/tags/v0.3.0.tar.gz"
+  sha256 "29c992969510e8ccbecc8cdc7ef1ae484b9a5964cff7ea5d0d0cd059a820d6c4"
   license "MIT"
-  head "https://github.com/Oh-Agent-AI/aunzip.git", branch: "main"
+  head "https://github.com/Oh-Agent-AI/agent-unzip.git", branch: "main"
 
   depends_on "rust" => :build
 

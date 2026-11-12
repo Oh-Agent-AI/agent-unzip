@@ -4,3 +4,5 @@ dist/
 *.tgz
 /pak
 src-tauri/gen/
+packaging/npm/platforms/*/aunzip
+packaging/npm/platforms/*/aunzip.exe

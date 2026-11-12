@@ -1,6 +1,6 @@
 [package]
 name = "agent-unzip"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 build = "build.rs"
 description = "代理解压缩：为 Agent 设计的解压器，结构化输出、永不阻塞、默认拒绝危险包"

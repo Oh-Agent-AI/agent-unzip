@@ -26,7 +26,7 @@ command -v aunzip || echo "MISSING"
 
 ```bash
 # macOS
-brew tap Oh-Agent-AI/aunzip && brew install aunzip
+brew tap Oh-Agent-AI/agent-unzip && brew install aunzip
 # 任意平台（从 releases 下载后放进 PATH，需先确认 sha256）
 # 或直接问用户要 aunzip 的安装路径
 ```

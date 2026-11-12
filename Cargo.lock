@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "agent-unzip"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bzip2-rs",

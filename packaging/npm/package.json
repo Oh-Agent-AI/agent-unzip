@@ -1,6 +1,6 @@
 {
   "name": "agent-unzip",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "agent-unzip（代理解压缩）：为 Agent 设计的解压器，JSON 契约 + 语义退出码 + 默认拒绝危险包",
   "bin": {
     "aunzip": "bin/aunzip.js"
@@ -24,7 +24,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Oh-Agent-AI/aunzip.git"
+    "url": "https://github.com/Oh-Agent-AI/agent-unzip.git"
   },
   "keywords": [
     "archive",
@@ -35,9 +35,8 @@
     "security"
   ],
   "optionalDependencies": {
-    "agent-unzip-darwin-arm64": "0.2.0",
-    "agent-unzip-darwin-x64": "0.2.0",
-    "agent-unzip-linux-x64": "0.2.0",
-    "agent-unzip-win32-x64": "0.2.0"
+    "agent-unzip-darwin-arm64": "0.3.0",
+    "agent-unzip-linux-x64": "0.3.0",
+    "agent-unzip-win32-x64": "0.3.0"
   }
 }
