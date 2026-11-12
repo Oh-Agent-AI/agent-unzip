@@ -1,0 +1,19 @@
+{
+  "name": "@pak/cli",
+  "version": "0.1.0",
+  "description": "Untrusted-archive gate for agents: inspect first, extract only if safe",
+  "bin": { "pak": "bin/pak.js" },
+  "files": ["bin", "README.md"],
+  "license": "MIT",
+  "os": ["darwin", "linux", "win32"],
+  "cpu": ["x64", "arm64"],
+  "engines": { "node": ">=18" },
+  "repository": { "type": "git", "url": "https://github.com/OWNER/pak.git" },
+  "keywords": ["archive", "unzip", "rar", "agent", "mcp", "security"],
+  "optionalDependencies": {
+    "@pak/cli-darwin-arm64": "0.1.0",
+    "@pak/cli-darwin-x64": "0.1.0",
+    "@pak/cli-linux-x64": "0.1.0",
+    "@pak/cli-win32-x64": "0.1.0"
+  }
+}

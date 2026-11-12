@@ -1,0 +1,25 @@
+[package]
+name = "pak"
+version = "0.1.0"
+edition = "2021"
+description = "跨平台解压缩器：一次内核，桌面 + 浏览器复用"
+
+[dependencies]
+anyhow = "1"
+zip = "9"
+tar = "0.4"
+flate2 = "1"
+bzip2-rs = "0.1"
+lzma-rs = "0.3"
+encoding_rs = "0.8"
+sevenz-rust2 = "0.25"
+unrar = "0.5"
+serde = { version = "1.0.229", features = ["derive"] }
+kamadak-exif = "0.6.2"
+serde_json = "1.0.154"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

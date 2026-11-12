@@ -1,0 +1,80 @@
+name: release
+
+# 关键：unrar_sys / zstd-sys 是 C++ 依赖，无法从 macOS 交叉编译，
+# 所以每个平台必须在自己的 runner 上原生构建。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14          # Apple Silicon
+            target: aarch64-apple-darwin
+            name: pak-aarch64-apple-darwin
+          - os: macos-13          # Intel
+            target: x86_64-apple-darwin
+            name: pak-x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: pak-x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: pak-x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package (unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p out
+          cp target/${{ matrix.target }}/release/pak out/
+          cp LICENSE THIRD_PARTY_NOTICES.md README.md out/
+          tar -C out -czf ${{ matrix.name }}.tar.gz .
+          shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
+
+      - name: Package (windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p out
+          cp target/${{ matrix.target }}/release/pak.exe out/
+          cp LICENSE THIRD_PARTY_NOTICES.md README.md out/
+          cd out && 7z a ../${{ matrix.name }}.zip . && cd ..
+          sha256sum ${{ matrix.name }}.zip > ${{ matrix.name }}.zip.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            ${{ matrix.name }}.tar.gz
+            ${{ matrix.name }}.tar.gz.sha256
+            ${{ matrix.name }}.zip
+            ${{ matrix.name }}.zip.sha256
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

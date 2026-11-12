@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "解压器默认权限：只需要调用自有命令",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

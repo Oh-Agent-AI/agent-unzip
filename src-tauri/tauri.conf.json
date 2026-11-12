@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "安全解压缩",
+  "version": "0.1.0",
+  "identifier": "local.safeunzip.desktop",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "安全解压缩",
+        "width": 880,
+        "height": 660,
+        "minWidth": 620,
+        "minHeight": 480,
+        "center": true,
+        "dragDropEnabled": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "icon": [
+      "icons/icon.png",
+      "icons/icon.icns"
+    ],
+    "category": "Utility",
+    "shortDescription": "解压之前，先告诉你安不安全",
+    "longDescription": "面向「收到压缩包会紧张」的人：解压前先给一句人话结论、说明文件来源、把伪装包和藏着的安装程序拦下来。纯本地，不上传。"
+  }
+}

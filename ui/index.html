@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>安全解压缩</title>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --sub: #6e6e73;
+    --line: #e3e3e8;
+    --accent: #2b6cf6;
+    --ok: #1a9c53;
+    --warn: #c9770a;
+    --bad: #d92d20;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1e;
+      --card: #26262a;
+      --text: #f2f2f7;
+      --sub: #98989f;
+      --line: #38383d;
+      --accent: #4c8dff;
+      --ok: #32d583;
+      --warn: #f5a623;
+      --bad: #ff6b5e;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, "SF Pro Text", "PingFang SC", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+  }
+  /* 顶部：拖拽区 + 标题 */
+  header {
+    -webkit-app-region: drag;
+    padding: 18px 22px 10px;
+    display: flex; align-items: baseline; gap: 10px;
+    border-bottom: 1px solid transparent;
+  }
+  header h1 { font-size: 15px; font-weight: 650; margin: 0; letter-spacing: .3px; }
+  header .ver { font-size: 11px; color: var(--sub); }
+  header .right { margin-left: auto; font-size: 11.5px; color: var(--sub); }
+
+  main { flex: 1; overflow-y: auto; padding: 6px 22px 18px; }
+  main::-webkit-scrollbar { width: 10px; }
+  main::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; border: 3px solid var(--bg); }
+
+  /* 投放区 */
+  #drop {
+    border: 1.5px dashed var(--line);
+    border-radius: 14px;
+    padding: 30px 20px;
+    text-align: center;
+    transition: .16s ease;
+    margin: 8px 0 16px;
+    background: transparent;
+  }
+  #drop.over {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    transform: scale(1.005);
+  }
+  #drop .icon { font-size: 30px; line-height: 1; opacity: .75; }
+  #drop .t1 { margin-top: 10px; font-weight: 600; }
+  #drop .t2 { margin-top: 4px; color: var(--sub); font-size: 12.5px; }
+  #drop .formats { margin-top: 10px; font-size: 11px; color: var(--sub); opacity: .85; }
+
+  /* 文件卡片 */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 15px 16px;
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+    animation: rise .18s ease both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
+  .card.danger { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
+  .card.done { border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+
+  .row { display: flex; align-items: center; gap: 10px; }
+  .fname { font-weight: 620; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kind {
+    font-size: 11px; padding: 2px 7px; border-radius: 6px; white-space: nowrap;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent); font-weight: 600;
+  }
+  .kind.bad { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+  .kind.warn { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+
+  .meta { margin-top: 7px; color: var(--sub); font-size: 12.5px; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .meta b { color: var(--text); font-weight: 600; }
+
+  .verdict {
+    margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    font-size: 13.5px;
+  }
+  .verdict .vhead { font-weight: 650; }
+  .verdict .vorigin { font-size: 11.5px; opacity: .8; margin-left: auto; }
+  .verdict.safe { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+  .verdict.caution { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+  .verdict.danger { background: color-mix(in srgb, var(--bad) 13%, transparent); color: var(--bad); }
+
+  .reasons {
+    margin: 8px 0 0; padding-left: 18px; color: var(--sub); font-size: 12.5px; line-height: 1.65;
+  }
+  .reasons li { margin-bottom: 2px; }
+
+  .chips { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 11.5px; padding: 3px 8px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--sub); display: inline-flex; gap: 5px; align-items: center;
+  }
+  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
+  .chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, var(--line)); }
+  .chip.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, var(--line)); }
+
+  .actions { margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+    transition: .14s ease;
+  }
+  button:hover { border-color: color-mix(in srgb, var(--text) 25%, var(--line)); }
+  button.primary {
+    background: var(--accent); color: #fff; border-color: transparent; font-weight: 600;
+  }
+  button.primary:hover { filter: brightness(1.06); }
+  button.ghost { color: var(--sub); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+
+  input[type=text], input[type=password] {
+    font: inherit; font-size: 12.5px; padding: 6px 9px; border-radius: 8px;
+    border: 1px solid var(--line); background: transparent; color: var(--text);
+    outline: none; min-width: 0;
+  }
+  input:focus { border-color: var(--accent); }
+  .field { display: flex; gap: 8px; align-items: center; margin-top: 9px; }
+  .field label { font-size: 12px; color: var(--sub); white-space: nowrap; }
+
+  .cmt { color: var(--text); opacity: .85; line-height: 1.55; }
+  .note { margin-top: 9px; font-size: 12.5px; color: var(--warn); }
+  .note.bad { color: var(--bad); font-weight: 600; }
+  .note.ok { color: var(--ok); }
+
+  .result { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 12.5px; color: var(--sub); }
+  .result .big { font-size: 14px; color: var(--ok); font-weight: 650; }
+  .result .path { color: var(--text); word-break: break-all; font-size: 12px; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 9px 22px; font-size: 11.5px; color: var(--sub);
+    display: flex; gap: 14px; align-items: center;
+  }
+  footer .dot { opacity: .5; }
+  .spinner {
+    width: 13px; height: 13px; border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-top-color: var(--accent); animation: spin .7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>安全解压缩</h1>
+  <span class="ver" id="ver"></span>
+  <span class="right">不上传 · 不联网 · 判断都在你电脑上做</span>
+</header>
+
+<main>
+  <div id="drop">
+    <div class="icon">⬇︎</div>
+    <div class="t1">把压缩包拖进来，我先帮你看看安不安全</div>
+    <div class="t2">看不懂的包、别人发来的包都可以拖进来 · 看不出风险我直说，不会让你猜</div>
+    <div class="formats">RAR (RAR4/RAR5/固实/分卷/加密) · ZIP · 7Z · TAR · GZ · BZ2 · XZ</div>
+  </div>
+  <div id="list"></div>
+</main>
+
+<footer>
+  <span>RAR（含分卷/加密） · ZIP · 7Z · TAR · GZ · BZ2 · XZ</span>
+  <span class="dot">·</span>
+  <span>纯本地 · 不上传 · 不扫描你其他文件</span>
+  <span class="dot">·</span>
+  <span>只做能确定的结构性判断，不做病毒库</span>
+</footer>
+
+<script>
+const DEMO = new URLSearchParams(location.search).has('demo');
+
+// —— 预览用的假内核，只在 ?demo=1 时生效 ——
+if (DEMO) {
+  const fakeInspect = (path) => {
+    const isBad = path.includes('可疑');
+    return {
+      path, file_name: baseName(path),
+      kind: isBad ? 'Zip' : 'Rar', kind_label: isBad ? 'ZIP 压缩包' : 'RAR5 压缩包',
+      is_archive: true, dangerous: false, disguise: null,
+      bytes: isBad ? 381400 : 328387527,
+      entries: isBad ? 14 : 48,
+      declared_bytes: isBad ? 562688 : 329878733,
+      ratio: isBad ? 1.47 : 1.00,
+      traversal: [], executables: isBad ? [{name:'照片查看器.app', kind:'macOS 应用程序 (.app)'}] : [],
+      encrypted: 0, junk: isBad ? 0 : 1, bomb: false, blocking: isBad,
+      verdict: isBad ? 'danger' : 'safe',
+      headline: isBad ? '危险：包里裹着安装程序' : '可以放心解开',
+      reasons: isBad
+        ? ['找到了 1 个可执行内容：照片查看器.app。',
+           '「照片包」里出现安装程序，是骗你装软件最常见的套路。如果你没在等这个程序，建议整包删掉。']
+        : ['48 个文件，解开约 314.6 MB，里面没有程序、没有伪装、没有越界路径。',
+           '顺手会清掉 1 个系统的垃圾文件（不影响内容）。'],
+      origin: { agent: 'WeChat', label: '从微信收到的', when: '3 分钟前' },
+      comment: isBad ? null : '上海XX视觉 2026-05-01 拍摄\n密码：13917177529',
+      completeness: isBad ? [] : [{ dir: '谷小姐 底片ac  1/8x6小香槟  9p', expected: 9, actual: 9, ok: true }],
+    };
+  };
+  window.__TAURI__ = {
+    core: {
+      invoke: async (cmd, args) => {
+        await new Promise(r => setTimeout(r, 120));
+        if (cmd === 'inspect') return fakeInspect(args.path);
+        if (cmd === 'unpack') {
+          const bad = args.path.includes('可疑');
+          return {
+            dir: (args.path.replace(/\.(rar|zip)$/i, '')), files: bad ? 2 : 40, dirs: bad ? 0 : 7,
+            bytes: bad ? 154624 : 320000000, seconds: bad ? 0.01 : 0.99,
+            junk_skipped: bad ? 0 : 1, traversal_blocked: 0,
+            encrypted: 0, failed: 0, executables: [], note: null,
+            content: bad
+              ? { images: 0, videos: 0, documents: 1, archives: 0, executables: 1, other: 0,
+                  mismatches: ['照片_001.jpg：扩展名是 .jpg，内容其实是 Mach-O 可执行程序（macOS）'] }
+              : { images: 40, videos: 0, documents: 0, archives: 0, executables: 0, other: 0, mismatches: [] },
+            exif: bad ? null : {
+              analyzed: 11, no_exif: 29, cameras: ['Canon EOS R6'],
+              software: ['Adobe Photoshop 26.3 (Windows)'],
+              with_gps: 0, taken_from: '2026-10-11 09:55:14', taken_to: '2026-10-11 09:57:42',
+            },
+          };
+        }
+        if (cmd === 'reveal') return null;
+      },
+    },
+    event: { listen: () => {} },
+  };
+}
+
+const tauri = window.__TAURI__;
+const invoke = tauri?.core?.invoke;
+const listen = tauri?.event?.listen;
+const listEl = document.getElementById('list');
+const dropEl = document.getElementById('drop');
+let seq = 0;
+
+const fmtSize = (b) => {
+  if (!b) return '0 B';
+  const u = ['B','KB','MB','GB','TB'];
+  let i = 0, v = b;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return i === 0 ? `${b} B` : `${v.toFixed(1)} ${u[i]}`;
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const baseName = (p) => p.split(/[\\/]/).pop();
+
+if (!invoke) {
+  document.querySelector('footer').innerHTML =
+    '<span>未检测到 Tauri 环境 —— 请用 <code>cargo tauri dev</code> 启动，或加 <code>?demo=1</code> 看界面预览</span>';
+}
+
+async function addFile(path) {
+  const id = ++seq;
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.dataset.id = id;
+  el.innerHTML = `
+    <div class="row">
+      <div class="fname">${esc(baseName(path))}</div>
+      <span class="kind">读取中…</span>
+    </div>
+    <div class="meta"><span class="spinner"></span></div>`;
+  listEl.prepend(el);
+
+  let info;
+  try {
+    info = await invoke('inspect', { path });
+  } catch (e) {
+    el.classList.add('danger');
+    el.innerHTML = `<div class="row"><div class="fname">${esc(baseName(path))}</div>
+      <span class="kind bad">无法识别</span></div>
+      <div class="note bad">${esc(e)}</div>`;
+    return;
+  }
+  render(el, path, info);
+}
+
+function contentLine(c) {
+  if (!c) return '';
+  const p = [];
+  if (c.images) p.push(`${c.images} 张图片`);
+  if (c.videos) p.push(`${c.videos} 个视频`);
+  if (c.documents) p.push(`${c.documents} 份文档`);
+  if (c.archives) p.push(`${c.archives} 个压缩包`);
+  if (c.other) p.push(`${c.other} 个其他文件`);
+  if (c.executables) p.push(`⚠ ${c.executables} 个可执行程序`);
+  return p.join(' · ');
+}
+
+function exifLine(e) {
+  if (!e) return '';
+  const p = [];
+  if (e.cameras && e.cameras.length) p.push(`相机 ${e.cameras.join(' / ')}`);
+  if (e.taken_from) {
+    const f = e.taken_from.slice(0, 16);
+    const t = e.taken_to ? e.taken_to.slice(0, 16) : '';
+    p.push(t && t !== f ? `拍摄于 ${f} ~ ${t.slice(11)}` : `拍摄于 ${f}`);
+  }
+  if (e.software && e.software.length) p.push(`经手过 ${e.software.join(' / ')}`);
+  if (e.no_exif) p.push(`${e.no_exif} 张无 EXIF`);
+  return p.join(' · ');
+}
+
+function chipsFor(info) {
+  const out = [];
+  if (info.traversal.length) out.push(`<span class="chip bad">⛔ 目录穿越 ${info.traversal.length} 条</span>`);
+  if (info.executables.length) out.push(`<span class="chip bad">⛔ 可执行内容 ${info.executables.length} 个</span>`);
+  if (info.bomb) out.push(`<span class="chip bad">⛔ 疑似压缩炸弹</span>`);
+  if (info.encrypted) out.push(`<span class="chip warn">🔒 加密 ${info.encrypted} 条</span>`);
+  if (info.junk) out.push(`<span class="chip">🧹 将清理 ${info.junk} 个垃圾文件</span>`);
+  if (!info.traversal.length && !info.executables.length && !info.bomb)
+    out.push('<span class="chip ok">✓ 体检通过</span>');
+  return out.join('');
+}
+
+function render(el, path, info) {
+  const bad = info.dangerous || !info.is_archive;
+  el.classList.toggle('danger', bad || info.blocking);
+
+  const kindClass = info.dangerous ? 'bad' : (info.disguise ? 'warn' : '');
+  const meta = [];
+  meta.push(`真实类型 <b>${esc(info.kind_label)}</b>`);
+  if (info.entries) meta.push(`条目 <b>${info.entries}</b>`);
+  if (info.declared_bytes) meta.push(`解压后约 <b>${fmtSize(info.declared_bytes)}</b>`);
+  if (info.bytes) meta.push(`包大小 <b>${fmtSize(info.bytes)}</b>`);
+  if (info.ratio) meta.push(`压缩比 <b>${info.ratio.toFixed(2)}</b>`);
+
+  let body = `
+    <div class="row">
+      <div class="fname" title="${esc(path)}">${esc(info.file_name || baseName(path))}</div>
+      <span class="kind ${kindClass}">${esc(info.kind_label)}</span>
+    </div>
+    <div class="meta">${meta.join('<span class="dot"> · </span>')}</div>`;
+
+  if (info.disguise) body += `<div class="note">⚠︎ ${esc(info.disguise)}</div>`;
+
+  // 结论横幅 + 来源 + 理由（这是「安全解压缩」的核心，不是附加信息）
+  const v = info.verdict || 'safe';
+  const vIcon = v === 'danger' ? '⛔' : v === 'caution' ? '⚠︎' : '✓';
+  body += `<div class="verdict ${v}">
+      <span class="vhead">${vIcon} ${esc(info.headline || '')}</span>
+      ${info.origin ? `<span class="vorigin">${esc(info.origin.label)} · ${esc(info.origin.when)}</span>` : ''}
+    </div>`;
+  if (info.reasons && info.reasons.length) {
+    body += `<ul class="reasons">${info.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`;
+  }
+
+  if (info.dangerous) {
+    el.innerHTML = body;
+    return;
+  }
+  if (!info.is_archive) {
+    el.innerHTML = body;
+    return;
+  }
+
+  body += `<div class="chips">${chipsFor(info)}</div>`;
+
+  if (info.comment) {
+    body += `<div class="note cmt">📝 包注释：${esc(info.comment).replace(/\n/g, '<br>')}</div>`;
+  }
+  if (info.completeness && info.completeness.length) {
+    const rows = info.completeness.map(g => {
+      const short = g.dir.split('/').pop();
+      return g.ok
+        ? `<span class="chip ok">✓ ${esc(short)} — ${g.actual} 张</span>`
+        : `<span class="chip bad">⚠ ${esc(short)} — 名字说 ${g.expected} 张，实际 ${g.actual} 张</span>`;
+    }).join('');
+    body += `<div class="chips">${rows}</div>`;
+  }
+
+  if (info.executables.length) {
+    const names = info.executables.slice(0, 3).map(e => esc(e.name)).join('、');
+    body += `<div class="note">包里含有可执行内容：${names}${info.executables.length > 3 ? ' 等' : ''}。解压后请勿双击。</div>`;
+  }
+
+  if (info.encrypted) {
+    body += `<div class="field"><label>密码</label>
+      <input type="password" class="pw" placeholder="这个包加密了，输入密码" style="flex:1" /></div>`;
+  }
+
+  body += `<div class="field"><label>解到</label>
+    <input type="text" class="dest" placeholder="留空 = 压缩包旁边的同名文件夹" style="flex:1" /></div>`;
+
+  body += `<div class="actions">
+      <button class="primary go">解压</button>
+      ${info.blocking ? '<button class="force ghost">仍要解压（我知道风险）</button>' : ''}
+    </div>
+    <div class="slot"></div>`;
+
+  el.innerHTML = body;
+
+  const slot = el.querySelector('.slot');
+  const destEl = el.querySelector('.dest');
+  const pwEl = el.querySelector('.pw');
+
+  const run = async (force) => {
+    const btn = el.querySelector('.go');
+    const fbtn = el.querySelector('.force');
+    btn.disabled = true; if (fbtn) fbtn.disabled = true;
+    const old = btn.textContent;
+    btn.innerHTML = '<span class="spinner"></span> 解压中';
+    slot.innerHTML = `<div class="result"><span class="spinner"></span> 正在解压…</div>`;
+    try {
+      const r = await invoke('unpack', {
+        path,
+        dest: destEl.value.trim() || null,
+        password: pwEl ? (pwEl.value || null) : null,
+        force: !!force,
+      });
+      el.classList.remove('danger');
+      el.classList.add('done');
+      const lines = [];
+      lines.push(`<div class="big">✓ 完成 ${r.files} 个文件 · ${r.dirs} 个目录 · ${fmtSize(r.bytes)} · ${r.seconds.toFixed(2)}s</div>`);
+      if (r.exif) {
+        const el = exifLine(r.exif);
+        if (el) lines.push(`📷 ${esc(el)}`);
+        if (r.exif.with_gps) {
+          lines.push(`<span class="note">⚠ ${r.exif.with_gps} 张照片带 GPS 定位，转发给客户前建议先去掉</span>`);
+        }
+      }
+      if (r.content) {
+        const cl = contentLine(r.content);
+        if (cl) lines.push(`📦 内容核对：${esc(cl)}`);
+        if (r.content.mismatches && r.content.mismatches.length) {
+          lines.push(`<span class="note bad">⛔ 解剖后发现伪装文件，前面「${esc(info.headline)}」的判断作废，不要双击任何东西</span>`);
+          r.content.mismatches.forEach(m => lines.push(`<span class="note bad">⛔ ${esc(m)}</span>`));
+        }
+      }
+      if (r.junk_skipped) lines.push(`🧹 清理垃圾文件 ${r.junk_skipped} 个`);
+      if (r.traversal_blocked) lines.push(`⚠︎ 拦下 ${r.traversal_blocked} 条目录穿越`);
+      if (r.encrypted) lines.push(`⚠︎ ${r.encrypted} 个条目加密未解出`);
+      if (r.failed) lines.push(`⚠︎ ${r.failed} 个条目损坏（已抢救出其余部分）`);
+      if (r.note) lines.push(`⚠︎ ${esc(r.note)}`);
+      if (r.executables.length) lines.push(`⛔ 包内有 ${r.executables.length} 个可执行内容，请勿双击`);
+      lines.push(`<div class="path">${esc(r.dir)}</div>`);
+      slot.innerHTML = `<div class="result">${lines.join('<br>')}
+        <div class="actions"><button class="reveal">在 Finder 中显示</button></div></div>`;
+      slot.querySelector('.reveal').onclick = () => invoke('reveal', { path: r.dir }).catch(() => {});
+    } catch (e) {
+      slot.innerHTML = `<div class="result"><span class="note bad">✗ ${esc(e)}</span></div>`;
+      btn.disabled = false; if (fbtn) fbtn.disabled = false;
+      btn.textContent = old;
+    }
+  };
+
+  el.querySelector('.go').onclick = () => run(false);
+  if (el.querySelector('.force')) el.querySelector('.force').onclick = () => run(true);
+}
+
+if (listen) {
+  listen('tauri://drag-enter', () => dropEl.classList.add('over'));
+  listen('tauri://drag-leave', () => dropEl.classList.remove('over'));
+  listen('tauri://drag-drop', (ev) => {
+    dropEl.classList.remove('over');
+    const paths = ev.payload?.paths || [];
+    paths.forEach(addFile);
+  });
+}
+document.getElementById('ver').textContent = 'v0.1.0';
+
+if (DEMO) {
+  setTimeout(() => {
+    addFile('/Users/Admin/Downloads/谷小姐 底片ac  1.rar');
+    addFile('/Users/Admin/Downloads/可疑照片包.zip');
+  }, 60);
+}
+</script>
+</body>
+</html>

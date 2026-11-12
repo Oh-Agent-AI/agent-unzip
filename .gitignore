@@ -1,0 +1,6 @@
+.cargo/
+target/
+dist/
+*.tgz
+/pak
+src-tauri/gen/

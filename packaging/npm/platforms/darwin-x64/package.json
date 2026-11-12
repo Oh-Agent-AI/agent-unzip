@@ -1,0 +1,20 @@
+{
+  "name": "@pak/cli-darwin-x64",
+  "version": "0.1.0",
+  "description": "pak binary for darwin x64",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "pak"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/pak.git"
+  },
+  "preferUnplugged": true
+}
