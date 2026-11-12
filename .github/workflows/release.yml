@@ -16,9 +16,8 @@ jobs:
           - os: macos-latest      # Apple Silicon
             target: aarch64-apple-darwin
             name: aunzip-aarch64-apple-darwin
-          - os: macos-13          # Intel
-            target: x86_64-apple-darwin
-            name: aunzip-x86_64-apple-darwin
+          # Intel Mac（x86_64-apple-darwin）：macos-13 runner 在本组织不可用，
+          # 暂时不发布预编译产物。Intel 用户请用 cargo install agent-unzip 从源码构建。
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             name: aunzip-x86_64-unknown-linux-gnu
