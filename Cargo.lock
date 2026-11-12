@@ -515,6 +515,7 @@ dependencies = [
  "encoding_rs",
  "flate2",
  "kamadak-exif",
+ "libc",
  "lzma-rs",
  "serde",
  "serde_json",

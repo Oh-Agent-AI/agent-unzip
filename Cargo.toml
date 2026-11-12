@@ -13,10 +13,19 @@ bzip2-rs = "0.1"
 lzma-rs = "0.3"
 encoding_rs = "0.8"
 sevenz-rust2 = "0.25"
-unrar = "0.5"
+unrar = { version = "0.5", optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
 kamadak-exif = "0.6.2"
 serde_json = "1.0.154"
+
+[features]
+default = ["rar"]
+# RAR 解压（内嵌 UnRAR）。关掉它可得到一个「零非自由依赖」的构建，
+# 便于进 Debian/Fedora 这类只收自由软件的仓库。
+rar = ["dep:unrar"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
 
 [profile.release]
 opt-level = 3

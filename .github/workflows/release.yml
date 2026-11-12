@@ -64,8 +64,26 @@ jobs:
             ${{ matrix.name }}.zip.sha256
           if-no-files-found: ignore
 
+  free-build:
+    # 只收自由软件的发行版（Debian/Fedora）用这个
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release --no-default-features
+      - name: Package
+        run: |
+          mkdir -p out && cp target/release/pak out/
+          cp LICENSE README.md out/
+          tar -C out -czf pak-x86_64-unknown-linux-gnu-norar.tar.gz .
+          shasum -a 256 pak-x86_64-unknown-linux-gnu-norar.tar.gz > pak-x86_64-unknown-linux-gnu-norar.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pak-norar-linux
+          path: pak-x86_64-unknown-linux-gnu-norar.tar.gz*
+
   release:
-    needs: build
+    needs: [build, free-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write

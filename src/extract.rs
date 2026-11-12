@@ -96,7 +96,10 @@ impl<'a> Sink<'a> {
 /// 预检（不解压，只读目录/头部）
 pub fn scan(kind: Kind, src: &Path, limits: &Limits) -> Result<Risk> {
     match kind {
+        #[cfg(feature = "rar")]
         Kind::Rar | Kind::Rar4 => rar_scan(src, limits),
+        #[cfg(not(feature = "rar"))]
+        Kind::Rar | Kind::Rar4 => Ok(Risk::default()),
         Kind::Zip => zip_scan(src, limits),
         _ => Ok(Risk::default()),
     }
@@ -114,6 +117,7 @@ fn finish_risk(mut risk: Risk, limits: &Limits, compressed: u64) -> Risk {
 
 // ---------------------------------------------------------------- RAR
 
+#[cfg(feature = "rar")]
 fn rar_scan(src: &Path, limits: &Limits) -> Result<Risk> {
     let mut risk = Risk::default();
     let mut comment_buf: Vec<u8> = Vec::new();
@@ -162,6 +166,7 @@ fn rar_scan(src: &Path, limits: &Limits) -> Result<Risk> {
     Ok(finish_risk(risk, limits, compressed))
 }
 
+#[cfg(feature = "rar")]
 fn rar_extract(src: &Path, dest: &Path, limits: &Limits, password: Option<&str>) -> Result<Outcome> {
     let mut out = Outcome::default();
 
@@ -492,7 +497,13 @@ pub fn extract(
 ) -> Result<Outcome> {
     fs::create_dir_all(dest)?;
     match kind {
+        #[cfg(feature = "rar")]
         Kind::Rar | Kind::Rar4 => rar_extract(src, dest, limits, password),
+        #[cfg(not(feature = "rar"))]
+        Kind::Rar | Kind::Rar4 => Err(anyhow!(
+            "这个构建没有编入 RAR 支持（去掉 UnRAR 的自由软件版）。\
+             装带 rar 特性的构建即可：cargo install --features rar"
+        )),
         Kind::Zip => {
             let mut out = Outcome::default();
             zip_extract(src, dest, limits, password, &mut out)?;
@@ -513,10 +524,12 @@ pub fn extract(
 }
 
 /// unrar 的 FileHeader 里我们需要的最小字段
+#[cfg(feature = "rar")]
 trait CloneInfo {
     fn clone_info(&self) -> (String, u64, bool, bool);
 }
 
+#[cfg(feature = "rar")]
 impl CloneInfo for unrar::FileHeader {
     fn clone_info(&self) -> (String, u64, bool, bool) {
         (

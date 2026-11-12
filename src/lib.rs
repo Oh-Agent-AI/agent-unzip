@@ -310,6 +310,9 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
 
     // 机器判定码：稳定、可枚举，Agent 直接 switch
     let mut codes: Vec<String> = Vec::new();
+    if matches!(kind, Kind::Rar | Kind::Rar4) && !cfg!(feature = "rar") {
+        codes.push("RAR_DISABLED".into());
+    }
     if kind.is_dangerous() {
         codes.push("DISGUISED_ARCHIVE".into());
     }
@@ -448,6 +451,16 @@ fn judge(
     declared: u64,
     compressed: u64,
 ) -> (String, String, Vec<String>) {
+    if matches!(kind, Kind::Rar | Kind::Rar4) && !cfg!(feature = "rar") {
+        return (
+            "caution".into(),
+            "这个版本不带 RAR 支持".into(),
+            vec![
+                "它是 RAR 压缩包，但当前构建裁掉了 UnRAR（自由软件版）。".into(),
+                "要解它请安装带 rar 特性的构建：cargo install pak --features rar".into(),
+            ],
+        );
+    }
     if kind.is_dangerous() {
         return (
             "danger".into(),
@@ -556,21 +569,37 @@ pub fn human(bytes: u64) -> String {
     }
 }
 
+/// 直接读 com.apple.quarantine（不 fork 子进程，App Sandbox 下也能用）
+#[cfg(target_os = "macos")]
+fn quarantine_of(path: &Path) -> Option<String> {
+    use std::os::unix::ffi::OsStrExt;
+    let cpath = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let name = std::ffi::CString::new("com.apple.quarantine").ok()?;
+    let mut buf = [0u8; 1024];
+    let n = unsafe {
+        libc::getxattr(
+            cpath.as_ptr(),
+            name.as_ptr(),
+            buf.as_mut_ptr() as *mut libc::c_void,
+            buf.len(),
+            0,
+            0,
+        )
+    };
+    if n <= 0 {
+        return None;
+    }
+    String::from_utf8(buf[..n as usize].to_vec()).ok()
+}
+
 /// 读 macOS 的隔离标记，告诉用户「这个文件从哪来的」
 fn read_origin(path: &Path) -> Option<Origin> {
     #[cfg(target_os = "macos")]
     {
-        let out = std::process::Command::new("xattr")
-            .arg("-p")
-            .arg("com.apple.quarantine")
-            .arg(path)
-            .output()
-            .ok()?;
-        if !out.status.success() {
-            return None;
-        }
-        let s = String::from_utf8_lossy(&out.stdout);
-        let parts: Vec<&str> = s.trim().split(';').collect();
+        // 走 syscall 而不是起 xattr 子进程：App Sandbox 下 fork/exec 会被拒，
+        // 而且这样也没有依赖外部命令的脆弱性。
+        let raw = quarantine_of(path)?;
+        let parts: Vec<&str> = raw.trim().split(';').collect();
         let agent = parts.get(2).copied().unwrap_or("").trim().to_string();
         let secs: i64 = parts
             .get(1)
