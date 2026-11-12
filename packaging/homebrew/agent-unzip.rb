@@ -9,7 +9,7 @@ class AgentUnzip < Formula
   desc "Agent-friendly unzipper: JSON out, never blocks, refuses risky archives"
   homepage "https://github.com/Oh-Agent-AI/agent-unzip"
   url "https://github.com/Oh-Agent-AI/agent-unzip/archive/refs/tags/v0.3.0.tar.gz"
-  sha256 "29c992969510e8ccbecc8cdc7ef1ae484b9a5964cff7ea5d0d0cd059a820d6c4"
+  sha256 "41c3237a731415853182892ed320e4847826a99977aa09cb69a6e552f857200d"
   license "MIT"
   head "https://github.com/Oh-Agent-AI/agent-unzip.git", branch: "main"
 
